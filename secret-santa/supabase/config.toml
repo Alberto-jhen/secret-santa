@@ -1,0 +1,16 @@
+project_id = "secret-santa"
+
+[functions.guest-draw]
+verify_jwt = false
+
+[functions.guest-result]
+verify_jwt = false
+
+[functions.guest-resend]
+verify_jwt = false
+
+[functions.purge-expired-guest-draws]
+verify_jwt = false
+
+[functions.process-guest-draw-outbox]
+verify_jwt = false
