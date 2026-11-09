@@ -1,13 +1,15 @@
 import type { ReactNode } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from '../../i18n/useTranslation'
 import { useAuth } from '../../hooks/useAuth'
+import { safeReturnTo } from '../../lib/authRedirect'
 import { PageContainer } from '../ui/PageContainer'
 
 interface AuthPageLayoutProps {
   eyebrow: string
   title: string
   description: string
+  allowAuthenticated?: boolean
   children: ReactNode
 }
 
@@ -16,9 +18,11 @@ export function AuthPageLayout({
   description,
   eyebrow,
   title,
+  allowAuthenticated = false,
 }: AuthPageLayoutProps) {
   const { loading, user } = useAuth()
   const { t } = useTranslation()
+  const [searchParams] = useSearchParams()
 
   if (loading) {
     return (
@@ -30,8 +34,13 @@ export function AuthPageLayout({
     )
   }
 
-  if (user) {
-    return <Navigate replace to="/" />
+  if (user && !allowAuthenticated) {
+    return (
+      <Navigate
+        replace
+        to={safeReturnTo(searchParams.get('returnTo'))}
+      />
+    )
   }
 
   return (

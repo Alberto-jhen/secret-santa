@@ -14,16 +14,16 @@ export function SiteHeader() {
         {/* Primary site navigation. */}
         <nav
           aria-label={t('navigationLabel')}
-          className="ml-auto flex items-center gap-9 max-[720px]:hidden"
+          className="ml-auto flex items-center gap-9 max-[720px]:gap-2"
         >
           <Link
-            className="text-[13px] font-medium text-[#53645b] no-underline transition-colors hover:text-forest"
+            className="text-[13px] font-medium text-[#53645b] no-underline transition-colors hover:text-forest max-[720px]:hidden"
             to="/#how-it-works"
           >
             {t('howItWorks')}
           </Link>
           <Link
-            className="text-[13px] font-medium text-[#53645b] no-underline transition-colors hover:text-forest"
+            className="text-[13px] font-medium text-[#53645b] no-underline transition-colors hover:text-forest max-[720px]:hidden"
             to="/#benefits"
           >
             {t('whyChooseUs')}

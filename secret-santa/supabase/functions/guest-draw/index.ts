@@ -8,11 +8,11 @@ import type {
   Locale,
 } from '../../../src/models.ts'
 import {
-  assertGmailConfigured,
-  createGmailContext,
+  assertResendConfigured,
+  createResendContext,
   guestResultUrl,
   sendGuestResultEmail,
-} from '../_shared/gmail.ts'
+} from '../_shared/resend.ts'
 import {
   HttpError,
   readJsonObject,
@@ -196,7 +196,7 @@ servePost(async (request) => {
     throw error
   }
 
-  assertGmailConfigured()
+  assertResendConfigured()
   requiredEnv('GUEST_ACCESS_TOKEN_SECRET', 32)
   requiredEnv('GUEST_RATE_LIMIT_SECRET', 32)
 
@@ -268,14 +268,14 @@ servePost(async (request) => {
     }
   }
 
-  let gmailContext: Awaited<ReturnType<typeof createGmailContext>> | undefined
+  let resendContext: ReturnType<typeof createResendContext> | undefined
 
   for (let index = 0; index < claimedRows.length; index += 1) {
     const participant = claimedRows[index]
 
-    if (!gmailContext) {
+    if (!resendContext) {
       try {
-        gmailContext = await createGmailContext()
+        resendContext = createResendContext()
       } catch {
         pendingCount += claimedRows.length - index
         await rpc('release_guest_delivery_claims', {
@@ -295,7 +295,7 @@ servePost(async (request) => {
     try {
       const token = await deriveGuestToken(drawId, participant.participant_id)
 
-      await sendGuestResultEmail(gmailContext, {
+      await sendGuestResultEmail(resendContext, {
         email: participant.email,
         participantName: participant.display_name,
         assignedName: participant.assigned_name,

@@ -14,3 +14,9 @@ verify_jwt = false
 
 [functions.process-guest-draw-outbox]
 verify_jwt = false
+
+[functions.group-invite]
+verify_jwt = false
+
+[functions.group-draw]
+verify_jwt = false

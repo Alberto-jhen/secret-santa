@@ -1,53 +1,95 @@
-# Remigo — proyecto y fases de desarrollo
-Descripción del producto, su estado funcional y las fases previstas para su desarrollo.
+# Remigo — proyecto y roadmap de desarrollo
+Este documento reúne la descripción del producto, el inventario de funcionalidades pendientes y un roadmap con dependencias y criterios de cierre.
 
-## Proyecto
-Remigo es una aplicación web bilingüe (español e inglés) para organizar sorteos de Amigo Invisible. El alcance contempla dos modalidades: sorteos sin cuenta y grupos privados con cuentas de usuario. El producto está orientado inicialmente a España y EUR.
+## Producto y alcance
+Remigo es una aplicación web bilingüe (español e inglés) para organizar sorteos de Amigo Invisible. El MVP contempla sorteos sin cuenta y grupos privados con cuentas, orientados inicialmente a España y EUR. La decisión de producto admite autenticación passwordless mediante magic link para los grupos.
 
-El MVP será gratuito, sin anuncios, afiliación/comisiones, patrocinios ni funciones premium. Ko-fi voluntario es la única fuente de ingresos contemplada a futuro. El catálogo y las recomendaciones de productos externos están pospuestos; se mantienen las listas y enlaces añadidos por los propios usuarios.
+El producto será gratuito, sin anuncios, afiliación/comisiones, patrocinios ni funciones premium. Ko-fi voluntario es la única fuente de ingresos prevista a futuro. Los catálogos y recomendaciones de productos externos están pospuestos; las listas y enlaces añadidos por usuarios sí pertenecen al alcance futuro.
 
-## Estado actual
-- Landing bilingüe con la marca Remigo.
-- Registro, inicio y cierre de sesión mediante Supabase Auth con email y contraseña; la confirmación del correo depende de la configuración de Supabase.
-- Sorteo invitado en `/guest-draw`, con fecha opcional, participantes con nombre y correo, exclusiones dirigidas y validación. Admite entre 2 y 50 participantes.
-- Asignación en el backend: cada participante da y recibe una vez, nadie se asigna a sí mismo y se respetan las exclusiones. El sorteo se rechaza si no existe una asignación completa válida.
-- Resultado privado en `/guest-result`, consultado mediante un token personal. El organizador no recibe la lista completa de asignaciones; cada participante puede pedir el reenvío de su correo.
-- Funciones de backend para crear sorteos, consultar y reenviar resultados, reintentar correos pendientes y eliminar datos expirados. El límite operativo previsto es de 400 mensajes diarios para los sorteos invitados.
-- La migración SQL configura RLS y contiene tablas fundacionales para grupos, membresías, invitaciones, exclusiones, asignaciones, ideas de regalo y notificaciones. Las tablas de grupos aún no tienen un flujo de interfaz.
+## Estado implementado
+- Landing bilingüe con marca Remigo.
+- Registro e inicio de sesión con email y contraseña, magic link, recuperación/restablecimiento de contraseña, callback de Auth y cierre de sesión. Las rutas privadas conservan el retorno seguro, incluidas las invitaciones.
+- Sorteo invitado en `/guest-draw`, con fecha opcional, nombres, correos, exclusiones dirigidas y validación; admite entre 2 y 50 participantes.
+- Asignación en backend: cada persona da y recibe una vez, nadie se asigna a sí misma y se respetan exclusiones. Se rechaza el sorteo si no hay una solución completa.
+- Resultado privado en `/guest-result`, consultado con un token personal. Quien organiza no recibe el mapa completo; cada participante puede pedir el reenvío de su resultado.
+- Edge Functions para crear sorteos, consultar y reenviar resultados, procesar reintentos de correo y limpiar datos expirados. El límite operativo previsto es de 400 mensajes diarios para sorteos invitados.
+- Flujo autenticado de grupos en `/groups`, `/groups/:groupId` e `/invitation`: creación y ajustes, membresías, invitaciones de 14 días, aceptación/rechazo con el correo invitado, exclusiones, sorteo manual de 3–50 personas, resultado privado, presupuesto EUR, listas de ideas y actividad en tiempo real.
+- `supabase/migrations/202610280001_group_workflow.sql` implementa las funciones SQL y permisos para aislar emails, asignaciones, exclusiones, listas, actividad y notificaciones. Las URLs de ideas se limitan a HTTP(S) tanto en cliente como en la base de datos.
+- `group-invite` y `group-draw` validan manualmente la sesión; `verify_jwt = false` permite la previsualización pública de invitaciones. Invitaciones y resultados usan outbox, reclamaciones de entrega y el cupo compartido de 400 correos diarios.
+- La actividad del grupo es un registro persistente visible a sus miembros y actualizado con Supabase Realtime. `notifications` mantiene eventos `draw_ready` y `group_update` con RLS por destinatario, pero todavía no hay una bandeja global ni estado leído/no leído.
 
-## Arquitectura y funcionamiento
-El frontend utiliza React, TypeScript, Vite, React Router y Tailwind CSS. La autenticación, la base de datos PostgreSQL y las funciones de servidor usan Supabase; las Edge Functions están escritas en TypeScript/Deno. Las traducciones y modelos compartidos se encuentran en `src/i18n/` y `src/models.ts`.
+La aplicación usa React, TypeScript, Vite, React Router y Tailwind CSS; Supabase Auth, PostgreSQL y Edge Functions en TypeScript/Deno forman el backend. El envío de correo es “al menos una vez”: puede duplicarse si Resend acepta un mensaje y falla la confirmación posterior en la base de datos. La cancelación invalida los resultados pendientes o reclamados antes del envío; no puede retirar un correo que Resend ya haya aceptado.
 
-En el flujo invitado, `guest-draw` valida la solicitud, calcula y guarda una asignación válida y gestiona el envío del correo. Cada participante recibe un enlace privado; `guest-result` solo devuelve el resultado asociado a ese token y `guest-resend` permite reenviar el mensaje. Los datos se conservan hasta 30 días después de la fecha del evento o, si no hay fecha, 30 días después del sorteo. El outbox permite reintentar entregas; estas son de tipo “al menos una vez”, por lo que puede haber un correo duplicado si falla la confirmación posterior a la aceptación por Gmail.
+## Pendiente para piloto y producción
+### Acceso y cuenta
+- Añadir los flujos de exportación y eliminación de cuenta, con sus efectos sobre los datos asociados.
 
-Las rutas de la aplicación son `/`, `/register`, `/login`, `/guest-draw` y `/guest-result`. El código de autenticación actual usa email y contraseña; la decisión inicial del producto contemplaba también el acceso mediante magic link, por lo que ambos puntos aún deben alinearse.
+### Validación y despliegue
+- La migración `202610280001_group_workflow.sql` no se ha aplicado y las Edge Functions no se han desplegado. No se ha ejecutado ninguna operación en un proyecto remoto.
+- `supabase/tests/group_workflow.test.sql` añade cobertura pgTAP de permisos, aislamiento de emails/asignaciones/listas/notificaciones, enlaces HTTP(S), actividad monotónica y cancelación de resultados reclamados; falta ejecutarla en PostgreSQL porque Docker no está disponible.
+- No se han compilado las Edge Functions con Deno ni probado invitaciones/correos contra Resend y Supabase reales.
+- `npm run lint` pasa; `npm test` pasa con 8 pruebas; `npm run build` pasa con un aviso de bundle JavaScript superior a 500 kB (817.53 kB minificado).
+- Antes de producción, configurar SMTP propio para Auth, `RESEND_API_KEY`, un remitente con dominio verificado en Resend y `GROUP_INVITATION_TOKEN_SECRET` (mínimo 32 caracteres); verificar despliegue, entregabilidad, reintentos, programación de las tareas existentes y los límites diarios.
+- Completar pruebas end-to-end, accesibilidad, RLS en un entorno local, registros/alertas, copias de seguridad y separación de entornos.
+- Decidir si el MVP requiere una bandeja independiente de notificaciones con estado leído/no leído; actualmente la experiencia visible es la actividad persistente y en tiempo real dentro de cada grupo.
+- Decidir si se necesita CAPTCHA además de la validación y el rate limiting actuales para los sorteos públicos.
+- Validar cualitativamente la propuesta con uno o dos grupos; los resultados son aprendizaje inicial, no validación amplia de mercado.
 
-## Fases de desarrollo
+### Privacidad y preparación del lanzamiento
+- Completar términos de uso, aviso de privacidad y revisión RGPD: finalidad, base jurídica, derechos, proveedores y plazos de conservación.
+- Comunicar que los datos de sorteos invitados se eliminan 30 días después del evento o, si no hay fecha, 30 días después del sorteo. Los grupos autenticados se eliminan tras 18 meses sin actividad de gestión; una visita pasiva no reinicia ese plazo.
 
-### Fase 0 — Validación y especificación
-La especificación funcional y las decisiones de permisos, conservación, presupuesto e ingresos están documentadas. La comparación de fuentes para catálogos está cerrada para el MVP. En el roadmap siguen pendientes la validación cualitativa con uno o dos grupos y una prueba real de Gmail OAuth y entregabilidad.
+## Roadmap final
 
-### Fase 1 — Base backend segura
-La aplicación ya dispone de Supabase Auth, migración SQL, políticas RLS y tipos compartidos. También existe el backend del sorteo invitado. La gestión autenticada de grupos, invitaciones, membresías y permisos asociados todavía no está implementada como funcionalidad de producto.
+### Fase 0 — Cierre de especificación y validación
+**Estado:** decisiones principales documentadas; validación de usuarios y prueba real de correo pendientes según el roadmap.
+
+Alcance: contrastar con uno o dos grupos el flujo gratuito y privado; probar Resend y la entregabilidad con un remitente de dominio verificado; estimar el volumen de temporada; y fijar los criterios de privacidad y lanzamiento. La decisión de no usar catálogo externo en el MVP está cerrada.
+
+**Cierre:** las decisiones restantes quedan probadas o registradas como restricciones explícitas del MVP.
+
+### Fase 1 — Fundamentos de backend y autenticación
+**Estado:** implementada en código; migración sin aplicar y pruebas PostgreSQL pendientes.
+
+Alcance: mantener migraciones reproducibles; completar el modelo de datos, tipos y RLS para grupos, invitaciones, membresías, exclusiones, sorteos, asignaciones y notificaciones; separar correctamente sorteos invitados y autenticados; e implementar el acceso passwordless por magic link. Si email y contraseña se conservan como alternativa, añadir recuperación y restablecimiento. Las operaciones de grupo deben ejecutarse con permisos de servidor apropiados y sin exponer el rol de servicio al cliente.
+
+**Cierre:** las políticas y pruebas demuestran aislamiento entre usuarios/grupos y acceso únicamente a los datos permitidos.
 
 ### Fase 2 — Sorteo invitado
-El flujo sin cuenta está implementado en frontend y funciones de servidor: participantes, exclusiones, cálculo, resultados privados, reenvíos, límites y cola de correos. El comportamiento en producción depende de la configuración efectiva de Supabase y Gmail, así como de la programación de las funciones de reintento y limpieza.
+**Estado:** implementada en el código; despliegue y operación real pendientes de confirmar.
 
-### Fase 3 — Cuentas y grupos
-Fase pendiente. Incluye creación y gestión de grupos, invitaciones por email con tokens de 14 días, aceptación o rechazo, reenvío de invitaciones con enlace nuevo y cambios de membresía. El sorteo requiere al menos tres miembros, se inicia manualmente y congela participantes y reglas. Antes del sorteo, cada miembro puede configurar su exclusión y quien organiza puede editar cualquiera; los cambios son visibles para el grupo. No se permiten reasignaciones parciales después de iniciar: cualquier cambio exige cancelar el sorteo completo y crear uno nuevo. Cada miembro ve solo su asignación en la app y por correo.
+Alcance: creación y validación de participantes, exclusiones, asignación completa, envío individual, enlaces privados, consulta y reenvío; límites antiabuso, outbox, reintentos y limpieza tras 30 días.
+
+**Cierre:** el flujo completo funciona con Supabase y Resend reales, los límites y reintentos están comprobados, y el proceso de limpieza está programado. Se establece un umbral de 400 correos diarios; se evalúa otra solución antes de acercarse al límite del proveedor y no se contratan servicios sin aprobación.
+
+### Fase 3 — Grupos e intercambios con cuenta
+**Estado:** implementada en código; migración, pruebas de base de datos y despliegue pendientes.
+
+Alcance: creación y gestión de grupos, invitaciones, aceptación/rechazo, membresías, exclusiones, notificaciones persistentes y en tiempo real, sorteo manual, congelación de reglas, cancelación completa y resultados privados en app y correo.
+
+**Cierre:** un grupo puede recorrer el ciclo completo desde la creación hasta los resultados; las reglas de mínimo de tres personas, exclusiones y cancelación se cumplen y ningún miembro puede consultar resultados ajenos.
 
 ### Fase 4 — Presupuesto y listas de regalos
-Fase pendiente. Contempla presupuesto mínimo y máximo en EUR e ideas de regalo por participante. La lista de cada persona solo será visible para quien tenga que hacerle el regalo. Reservar o marcar regalos como comprados queda para una iteración posterior si se valida su necesidad.
+**Estado:** implementada en código; privacidad de listas pendiente de validación PostgreSQL local.
 
-### Fase 5 — Catálogo y recomendaciones
-Fase expresamente pospuesta y fuera del MVP aprobado. Solo se reconsiderará una fuente autorizada, sin coste recurrente, compatible con España/EUR y con enlaces no monetizados. No se compartirán nombres ni correos de participantes con un catálogo externo; no se contemplan afiliación ni comisiones.
+Alcance: presupuestos mínimo/máximo en EUR y listas individuales de ideas y enlaces, visibles solo para quien regala.
 
-### Fase 6 — Lanzamiento
-Fase pendiente de cierre. Incluye pruebas de casos límite, RLS y accesos cruzados; accesibilidad y los dos idiomas; registros, alertas y copias de seguridad; revisión de proveedores; y documentación de privacidad y conservación. Los sorteos invitados se conservan 30 días según la fecha indicada. Para grupos autenticados, el plazo decidido es de 18 meses sin actividad de gestión; una visita pasiva no reinicia el plazo. La funcionalidad de exportación y borrado de cuenta también debe definirse o implementarse. El estado de despliegue, OAuth real y tareas programadas no puede confirmarse únicamente desde el código del repositorio.
+**Cierre:** presupuesto y lista se muestran a los participantes autorizados, con pruebas que verifican que otros miembros no pueden consultar la lista privada.
 
-## Decisiones de producto
-- Español como idioma inicial e inglés disponible; lanzamiento orientado a España y precios en EUR.
-- Sorteos invitados sin cuenta y grupos privados asociados a cuentas.
-- Privacidad: cada participante accede solo a su resultado; quien organiza nunca recibe el mapa completo.
-- Aplicación gratuita, sin anuncios, afiliación/comisiones, patrocinios ni nivel premium; Ko-fi voluntario como única fuente de ingresos futura.
-- Sin catálogo ni recomendador externo en el MVP.
+### Fase 5 — Catálogo y recomendaciones externas
+**Estado:** pospuesta; no bloquea el MVP ni su lanzamiento.
+
+Solo se reabre si aparece una fuente autorizada, sin coste recurrente, compatible con España/EUR y con enlaces no monetizados. No se enviarán nombres ni correos a proveedores externos. Comparaloo no cumple la política actual; Comparor solo resulta pertinente para precios por EAN; eBay requiere resolver derechos de visualización/caché/enlaces y condiciones de acceso. No se añadirá IA que invente productos o precios.
+
+### Fase 6 — Preparación y lanzamiento
+**Estado:** pendiente de cierre.
+
+Alcance: completar documentación legal y privacidad; decidir/implementar exportación y borrado de cuenta; verificar retención y borrados; probar asignaciones, RLS, accesos cruzados, correo, accesibilidad e idiomas; configurar monitorización, alertas, copias y entornos separados; y confirmar los requisitos de producción de Resend y Supabase.
+
+**Cierre:** las pruebas de seguridad y flujos críticos pasan, los plazos y derechos de datos se informan claramente y la infraestructura de producción está verificada. Esta fase no depende de la Fase 5.
+
+## Fuera del MVP
+- Catálogo y recomendador de productos externos.
+- Afiliación, comisiones, anuncios, patrocinios y funciones premium.
+- Reserva o marcado de regalos como comprados, hasta validar que sea necesario.
+- Servicios de pago sin aprobación expresa.

@@ -50,6 +50,14 @@ export function AuthHeaderActions() {
   if (isLoggedIn) {
     return (
       <div className="flex items-center gap-3">
+        <ButtonLink
+          className="max-[420px]:min-h-[39px] max-[420px]:px-2 max-[420px]:text-[10px]"
+          size="small"
+          to="/groups"
+          variant="outline"
+        >
+          {t('groupsTitle')}
+        </ButtonLink>
         {/* Current account identity is visible on wider layouts. */}
         <span
           className="hidden max-w-[150px] truncate text-xs font-medium text-[#344d40] lg:inline"

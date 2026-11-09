@@ -1,11 +1,12 @@
 import {
-  assertGmailConfigured,
-  createGmailContext,
+  assertResendConfigured,
+  createResendContext,
   guestResultUrl,
   sendGuestResultEmail,
-} from '../_shared/gmail.ts'
+} from '../_shared/resend.ts'
 import type { PendingGuestDelivery } from '../../../src/models.ts'
 import { HttpError, serveProtectedPost } from '../_shared/http.ts'
+import { processGroupEmailOutbox } from '../_shared/groupEmail.ts'
 import { deriveGuestToken, reserveEmailQuota } from '../_shared/security.ts'
 import { rpc } from '../_shared/supabase.ts'
 
@@ -20,14 +21,21 @@ serveProtectedPost(
     )
 
     if (pending.length === 0) {
-      return { payload: { processed: 0, failed: 0, deferred: 0 } }
+      const groupDelivery = await processGroupEmailOutbox()
+      return {
+        payload: {
+          processed: groupDelivery.sent + groupDelivery.failed,
+          failed: groupDelivery.failed,
+          deferred: groupDelivery.deferred,
+        },
+      }
     }
 
-    let gmailContext: Awaited<ReturnType<typeof createGmailContext>>
+    let resendContext: ReturnType<typeof createResendContext>
 
     try {
-      assertGmailConfigured()
-      gmailContext = await createGmailContext()
+      assertResendConfigured()
+      resendContext = createResendContext()
     } catch (error) {
       await rpc('release_guest_delivery_claims', {
         p_claim_token: claimToken,
@@ -64,7 +72,7 @@ serveProtectedPost(
           delivery.participant_id,
         )
 
-        await sendGuestResultEmail(gmailContext, {
+        await sendGuestResultEmail(resendContext, {
           email: delivery.email,
           participantName: delivery.display_name,
           assignedName: delivery.assigned_name,
@@ -96,8 +104,13 @@ serveProtectedPost(
       processed += 1
     }
 
+    const groupDelivery = await processGroupEmailOutbox()
     return {
-      payload: { processed, failed, deferred },
+      payload: {
+        processed: processed + groupDelivery.sent + groupDelivery.failed,
+        failed: failed + groupDelivery.failed,
+        deferred: deferred + groupDelivery.deferred,
+      },
     }
   },
 )

@@ -1,9 +1,9 @@
 import {
-  assertGmailConfigured,
-  createGmailContext,
+  assertResendConfigured,
+  createResendContext,
   guestResultUrl,
   sendGuestResultEmail,
-} from '../_shared/gmail.ts'
+} from '../_shared/resend.ts'
 import type { GuestAssignmentRecord } from '../../../src/models.ts'
 import {
   HttpError,
@@ -34,15 +34,15 @@ servePost(async (request) => {
     throw new HttpError(404, 'result_not_found')
   }
 
-  assertGmailConfigured()
-  const gmailContext = await createGmailContext()
+  assertResendConfigured()
+  const resendContext = createResendContext()
 
   if (!(await reserveEmailQuota())) {
     throw new HttpError(429, 'daily_email_limit')
   }
 
   try {
-    await sendGuestResultEmail(gmailContext, {
+    await sendGuestResultEmail(resendContext, {
       email: assignment.email,
       participantName: assignment.display_name,
       assignedName: assignment.assigned_name,

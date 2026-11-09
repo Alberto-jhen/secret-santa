@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { Info } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import type { RegisterFormValues } from '../../models'
 import { useTranslation } from '../../i18n/useTranslation'
 import { useAuth } from '../../hooks/useAuth'
 import { getAuthErrorKey } from '../../lib/authErrors'
+import { safeReturnTo } from '../../lib/authRedirect'
 import { toast } from '../../lib/toast'
 import {
   Tooltip,
@@ -51,6 +52,8 @@ export function RegisterForm() {
   const { signUp } = useAuth()
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const returnTo = safeReturnTo(searchParams.get('returnTo'))
   const [values, setValues] = useState<RegisterFormValues>({
     name: '',
     email: '',
@@ -103,6 +106,7 @@ export function RegisterForm() {
         name: values.name.trim(),
         email: values.email.trim(),
         password: values.password,
+        returnTo,
       })
 
       if (session) {
@@ -111,7 +115,7 @@ export function RegisterForm() {
           title: t('registerSuccessTitle'),
           description: t('registerSuccess'),
         })
-        navigate('/', { replace: true })
+        navigate(returnTo, { replace: true })
       } else {
         toast.add({
           type: 'info',
@@ -298,7 +302,7 @@ export function RegisterForm() {
         {t('registerLoginPrompt')}{' '}
         <Link
           className="font-semibold text-[#174b3a] underline decoration-[#9db9a1] underline-offset-4 hover:text-[#0d3026]"
-          to="/login"
+          to={`/login?returnTo=${encodeURIComponent(returnTo)}`}
         >
           {t('loginLink')}
         </Link>

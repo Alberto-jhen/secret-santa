@@ -2,6 +2,10 @@ import type { DrawParticipant } from '../../../src/models.ts'
 
 export type RandomIndex = (maxExclusive: number) => number
 
+export function isValidGroupMemberCount(count: number): boolean {
+  return Number.isInteger(count) && count >= 3 && count <= 50
+}
+
 export class DrawConstraintError extends Error {
   readonly code: 'invalid_participants' | 'impossible_assignment'
 

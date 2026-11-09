@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import type { Session } from '@supabase/supabase-js'
 import type { AuthCredentials, RegisterCredentials } from '../models'
 import { AuthConfigurationError } from '../lib/authErrors'
+import { authCallbackUrl, safeReturnTo } from '../lib/authRedirect'
 import { getSupabaseClient } from '../lib/supabase'
 import { AuthContext } from './AuthContext'
 
@@ -77,14 +78,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [supabase])
 
   const signUp = useCallback(
-    async ({ name, email, password }: RegisterCredentials) => {
+    async ({ name, email, password, returnTo }: RegisterCredentials) => {
       const client = requireClient()
       const { data, error } = await client.auth.signUp({
         email: email.trim(),
         password,
         options: {
           data: { name: name.trim() },
-          emailRedirectTo: new URL('/register', window.location.origin).toString(),
+          emailRedirectTo: authCallbackUrl(returnTo ?? '/groups'),
         },
       })
 
@@ -112,6 +113,51 @@ export function AuthProvider({ children }: AuthProviderProps) {
     [requireClient],
   )
 
+  const signInWithMagicLink = useCallback(
+    async (email: string, returnTo = '/groups') => {
+      const client = requireClient()
+      const { error } = await client.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          emailRedirectTo: authCallbackUrl(returnTo),
+          shouldCreateUser: false,
+        },
+      })
+
+      if (error) {
+        throw error
+      }
+    },
+    [requireClient],
+  )
+
+  const requestPasswordReset = useCallback(
+    async (email: string, returnTo = '/groups') => {
+      const client = requireClient()
+      const redirectTo = new URL('/reset-password', window.location.origin)
+      redirectTo.searchParams.set('returnTo', safeReturnTo(returnTo))
+      const { error } = await client.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: redirectTo.toString(),
+      })
+
+      if (error) {
+        throw error
+      }
+    },
+    [requireClient],
+  )
+
+  const updatePassword = useCallback(
+    async (password: string) => {
+      const client = requireClient()
+      const { error } = await client.auth.updateUser({ password })
+
+      if (error) {
+        throw error
+      }
+    },
+    [requireClient],
+  )
   const signOut = useCallback(async () => {
     const client = requireClient()
     const { error } = await client.auth.signOut()
@@ -130,9 +176,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isLoggedIn: Boolean(session?.user),
       signUp,
       signIn,
+      signInWithMagicLink,
+      requestPasswordReset,
+      updatePassword,
       signOut,
     }),
-    [loading, session, signIn, signOut, signUp, supabase],
+    [
+      loading,
+      requestPasswordReset,
+      session,
+      signIn,
+      signInWithMagicLink,
+      signOut,
+      signUp,
+      supabase,
+      updatePassword,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

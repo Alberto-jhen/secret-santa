@@ -50,6 +50,18 @@ export async function deriveGuestToken(
   return bytesToBase64Url(token)
 }
 
+export async function deriveGroupInvitationToken(
+  invitationId: string,
+): Promise<string> {
+  const secret = requiredEnv('GROUP_INVITATION_TOKEN_SECRET', 32)
+  const token = await hmacBytes(
+    secret,
+    `remigo-group-invitation:v1:${invitationId}`,
+  )
+
+  return bytesToBase64Url(token)
+}
+
 export async function consumeRateLimit(
   request: Request,
   scope: string,
